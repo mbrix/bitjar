@@ -1,0 +1,14 @@
+{application, bitjar,
+ [
+  {description, "Bitjar for bit bucket agnostic backends"},
+  {vsn, "1"},
+  {registered, []},
+  {applications, [
+                  kernel,
+                  stdlib,
+                  lager,
+                  eleveldb
+                 ]},
+  {mod, { bitjar, []}},
+  {env, []}
+ ]}.
