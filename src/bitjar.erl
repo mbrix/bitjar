@@ -9,8 +9,11 @@
 %% API functions
 -export([open/1,
 		 open/2,
-		 set_serializer/4,
-		 set_deserializer/3,
+		 set_serializer/6,
+		 set_key_serializer/3,
+		 set_key_deserializer/3,
+		 set_value_serializer/3,
+		 set_value_deserializer/3,
 		 close/1,
 		 groups/1,
 		 store/2,
@@ -35,13 +38,14 @@
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
+-define(GROUP_ID, 1).
+
 behaviour_info(callbacks)->
     [{bitjar_init, 1},
 	 {bitjar_shutdown, 1},
 	 {bitjar_store, 2},
      {bitjar_lookup, 2},
      {bitjar_delete, 2},
-	 {bitjar_add_group, 2},
 	 {bitjar_all, 2},
 	 {bitjar_filter, 3},
 	 {bitjar_foldl, 4},
@@ -106,7 +110,7 @@ delete(B, GKList) ->
 all(#bitjar{mod=M, groups=G}=B, Group) ->
 	case maps:find(Group, G) of
 		error -> [];
-		{ok, GroupId} ->  M:bitjar_all(B, GroupId)
+		{ok, GDef} ->  M:bitjar_all(B, GDef#bitjar_groupdef.groupid)
 	end.
 
 filter(B, Fun, Group) when is_function(Fun) -> filter(B, [Fun], Group);
@@ -114,19 +118,46 @@ filter(B, Fun, Group) when is_function(Fun) -> filter(B, [Fun], Group);
 filter(#bitjar{mod=M, groups=G}=B, FilterFuns, Group) ->
 	case maps:find(Group, G) of
 		error -> [];
-		{ok, GroupId} -> M:bitjar_filter(B, FilterFuns, GroupId)
+		{ok, GDef} -> M:bitjar_filter(B, FilterFuns, GDef#bitjar_groupdef.groupid)
 	end.
 
 foldl(#bitjar{mod=M, groups=G}=B, Fun, StartAcc, Group) ->
 	case maps:find(Group, G) of
 		error -> StartAcc;
-		{ok, GroupId} -> M:bitjar_foldl(B, Fun, StartAcc, GroupId)
+		{ok, GDef} -> M:bitjar_foldl(B, Fun, StartAcc, GDef#bitjar_groupdef.groupid)
 	end.
 
+%% Inline serialization code
+%% attached to a specific bucket
 
-set_serializer(B, Group, KeySerializerFun, ValueSerializerFun) -> ok.
+set_serializer(B,
+			   Group,
+			   KeySerializerFun,
+			   ValueSerializerFun,
+			   KeyDeserializerFun,
+			   ValueDeserializerFun) ->
+	{ok, B2} = set_key_serializer(B, Group, KeySerializerFun),
+	{ok, B3} = set_value_serializer(B2, Group, ValueSerializerFun),
+	{ok, B4} = set_key_deserializer(B3, Group,KeyDeserializerFun),
+	set_value_deserializer(B4, Group, ValueDeserializerFun).
 
-set_deserializer(B, Group, KeyDeserializerFun, ValueDeserializerFun) -> ok.
+set_key_serializer(#bitjar{groups=G}=B, Group, Fun) ->
+	{ok, B2, GDef} = add_group(B, Group),
+	{ok, B2#bitjar{groups = maps:put(Group, GDef#bitjar_groupdef{kserializer = Fun}, G)}}.
+
+set_key_deserializer(#bitjar{groups=G}=B, Group, Fun) ->
+	{ok, B2, GDef} = add_group(B, Group),
+	{ok, B2#bitjar{groups = maps:put(Group, GDef#bitjar_groupdef{kdeserializer = Fun}, G)}}.
+
+set_value_serializer(#bitjar{groups=G}=B, Group, Fun) ->
+	{ok, B2, GDef} = add_group(B, Group),
+	{ok, B2#bitjar{groups = maps:put(Group, GDef#bitjar_groupdef{vserializer = Fun}, G)}}.
+
+set_value_deserializer(#bitjar{groups=G}=B, Group, Fun) ->
+	{ok, B2, GDef} = add_group(B, Group),
+	{ok, B2#bitjar{groups = maps:put(Group, GDef#bitjar_groupdef{vdeserializer = Fun}, G)}}.
+
+%% End Serialization
 
 %% Private functions
 
@@ -134,22 +165,68 @@ do_store(B, []) -> {ok, B};
 do_store(#bitjar{mod=M}=B, GKVList) -> M:bitjar_store(B, GKVList).
 
 do_lookup(_, []) -> not_found;
-do_lookup(#bitjar{mod=M}=B, GKList) -> M:bitjar_lookup(B, GKList).
+do_lookup(#bitjar{mod=M}=B, GKList) ->
+	deserialize(B, M:bitjar_lookup(B, GKList)).
 
 do_delete(B, []) -> {ok, B};
 do_delete(#bitjar{mod=M}=B, GKList) -> M:bitjar_delete(B, GKList).
 
 resolve_gkvlist(B, L) -> resolve_gkvlist(B, L, []).
 resolve_gkvlist(B, [], Acc) -> {ok, B, Acc};
-resolve_gkvlist(#bitjar{mod=M}=B, [{G, K, V}|T], Acc) ->
-	{ok, B2, GroupId} = M:bitjar_add_group(B, G),
-	resolve_gkvlist(B2, T, [{GroupId, K, V}|Acc]).
+resolve_gkvlist(B, [{G, K, V}|T], Acc) ->
+	{ok, B2, GDef} = add_group(B, G),
+	resolve_gkvlist(B2, T,
+					[{GDef#bitjar_groupdef.groupid,
+					  run_fun(GDef#bitjar_groupdef.kserializer, K),
+					  run_fun(GDef#bitjar_groupdef.vserializer, V)}|Acc]).
 
 resolve_gklist(B, L) -> resolve_gklist(B, L, []).
 resolve_gklist(B, [], Acc) -> {ok, B, Acc};
-resolve_gklist(#bitjar{mod=M}=B, [{G, K}|T], Acc) ->
-	{ok, B2, GroupId} = M:bitjar_add_group(B, G),
-	resolve_gklist(B2, T, [{GroupId, K}|Acc]).
+resolve_gklist(B, [{G, K}|T], Acc) ->
+	{ok, B2, GDef} = add_group(B, G),
+	resolve_gklist(B2, T,
+				   [{G,
+				   	 GDef#bitjar_groupdef.groupid,
+				   	 run_fun(GDef#bitjar_groupdef.kserializer, K)}|Acc]).
 
 resolve_mod(leveldb) -> {mod, bitjar_storage_leveldb};
+resolve_mod(ets) -> {mod, bitjar_storage_ets};
 resolve_mod(X) -> {mod, X}.
+
+run_fun(undefined, V) when is_binary(V) -> V;
+run_fun(undefined, V) -> throw({no_serialization_definition, V});
+run_fun(Fun, V) -> Fun(V).
+
+%% XXX deserialization is not optimized
+
+deserialize(#bitjar{}, not_found) -> not_found;
+deserialize(#bitjar{groups=G}, {ResCode, Results}) ->
+	{ResCode, deserialize(G, Results, [])}.
+
+deserialize(_G, [], Acc) -> lists:reverse(Acc);
+deserialize(G, [{Name, K, V}|T], Acc) ->
+	deserialize(G, T,
+				[deserialize_run(Name, maps:find(Name, G), K, V)|Acc]).
+
+deserialize_run(_Name, error, K, V) -> {K, V};
+deserialize_run(Name, {ok, GDef}, K, V) ->
+	{Name,
+	 run_fun(GDef#bitjar_groupdef.kdeserializer, K),
+	 run_fun(GDef#bitjar_groupdef.vdeserializer, V)}.
+
+
+add_group(#bitjar{mod=M, groups = G}=B, Identifier) ->
+	case maps:find(Identifier, G) of
+		{ok, Val} -> {ok, B, Val};
+		error -> 
+			NextId = next_id(B),
+			{ok, B2} = M:bitjar_store(B, [{?GROUP_ID,
+										 erlang:term_to_binary(Identifier),
+										 erlang:term_to_binary(NextId)}]),
+			Group = #bitjar_groupdef{groupid = NextId},
+			{ok, B2#bitjar{last_id = NextId,
+						   groups = maps:put(Identifier, Group, G)},
+			 Group}
+	end.
+
+next_id(#bitjar{last_id = Id}) -> Id+1.

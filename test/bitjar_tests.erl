@@ -41,7 +41,7 @@ ldb_lookup() ->
 	{ok, B2} = bitjar:store(B, test, <<"key">>, <<"value">>),
 	{ok, B3} = bitjar:store(B2, test, <<"key2">>, <<"value">>),
 	{ok, B4} = bitjar:store(B3, test2, <<"key">>, <<"value">>),
-	{ok, [{<<"key">>, <<"value">>}]} = bitjar:lookup(B4, test2, <<"key">>),
+	{ok, [{test2, <<"key">>, <<"value">>}]} = bitjar:lookup(B4, test2, <<"key">>),
 	{partial, _} = bitjar:lookup(B4, [{test, <<"key">>}, {test, <<"key2">>}, {test, <<"key3">>}]),
 	{ok, _} = bitjar:lookup(B4, [{test, <<"key">>}, {test, <<"key2">>}, {test2, <<"key">>}]),
 	ok = bitjar:close(B4).
@@ -49,7 +49,7 @@ ldb_lookup() ->
 ldb_delete() ->
 	{ok, B} = bitjar:open(leveldb, #{path => ?PATH}),
 	{ok, B2} = bitjar:store(B, test, <<"key">>, <<"value">>),
-	{ok, [{<<"key">>, <<"value">>}]} = bitjar:lookup(B2, test, <<"key">>),
+	{ok, [{test, <<"key">>, <<"value">>}]} = bitjar:lookup(B2, test, <<"key">>),
 	{ok, B3} = bitjar:delete(B2, test, <<"key">>),
 	?assertMatch(not_found, bitjar:lookup(B3, test, <<"key">>)),
 	ok = bitjar:close(B3).
@@ -60,7 +60,7 @@ ldb_all() ->
 	{ok, B2} = bitjar:store(B, test, <<"key">>, <<"value">>),
 	{ok, B3} = bitjar:delete(B2, test, <<"key">>),
 	?assertMatch([], bitjar:all(B3, testgroup)),
-	?assertEqual(#{test => 2}, bitjar:groups(B3)),
+	?assertMatch({ok, _}, maps:find(test, bitjar:groups(B3))),
 	{ok, B4} = bitjar:store(B3, test, <<"key2">>, <<"value2">>),
 	{ok, B5} = bitjar:store(B4, test2, <<"k">>, <<"v">>),
 	{ok, B6} = bitjar:store(B5, test2, <<"k2">>, <<"v2">>),
@@ -93,6 +93,20 @@ ldb_multistore() ->
 	?assertMatch([_,_,_], bitjar:all(B2, test)),
 	ok = bitjar:close(B2).
 
+serialization() ->
+	{ok, B} = bitjar:open(leveldb, #{path => ?PATH}),
+	SerialFun = fun(E) -> erlang:term_to_binary(E) end,
+	DeserialFun = fun(E) -> erlang:binary_to_term(E) end,
+	{ok, B2} = bitjar:set_serializer(B, test,
+						  SerialFun, %% Key Serializer
+						  SerialFun, %% Value Serializer
+						  DeserialFun, %% Key Deserializer
+						  DeserialFun), %% Value Deserializer
+	{ok, B3} = bitjar:store(B2, [{test, mykey, "myvalue"}]),
+	?assertEqual({ok, [{test, mykey, "myvalue"}]},
+				 bitjar:lookup(B3, test, mykey)),
+	ok = bitjar:close(B2).
+
 leveldb_test_() -> 
   {foreach,
   fun start_leveldb/0,
@@ -105,7 +119,8 @@ leveldb_test_() ->
 			{"all", fun ldb_all/0},
 			{"fold", fun ldb_foldl/0},
 			{"filter", fun ldb_filter/0},
-			{"multistore", fun ldb_multistore/0}
+			{"multistore", fun ldb_multistore/0},
+			{"Serialize and deserialize", fun serialization/0}
    ]}.
 
 %%%%% Memory / Maps bitjar backend

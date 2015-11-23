@@ -17,7 +17,6 @@
 		 bitjar_store/2,
 		 bitjar_lookup/2,
 		 bitjar_delete/2,
-		 bitjar_add_group/2,
 		 bitjar_all/2,
 		 bitjar_filter/3,
 		 bitjar_foldl/4,
@@ -43,18 +42,6 @@ bitjar_default_options() ->
 	#{path => random_path(),
 	  storage_options => [{create_if_missing, true}]}.
 
-bitjar_add_group(#bitjar{groups = G}=B, Identifier) ->
-	case maps:find(Identifier, G) of
-		{ok, Val} -> {ok, B, Val};
-		error -> 
-			NextId = next_id(B),
-			{ok, B2} = bitjar_store(B, [{?GROUP_ID, erlang:term_to_binary(Identifier),
-										erlang:term_to_binary(NextId)}]),
-			{ok, B2#bitjar{last_id = NextId,
-						   groups = maps:put(Identifier, NextId, G)},
-			 NextId}
-	end.
-
 bitjar_store(#bitjar{state=#{dbref := Ref}}=B, StoreList) ->
 	ok = eleveldb:write(Ref, lists:map(fun({Id, K, V}) -> {put, <<Id:8, K/binary>>, V} end, StoreList), []),
 	{ok, B}.
@@ -62,7 +49,7 @@ bitjar_store(#bitjar{state=#{dbref := Ref}}=B, StoreList) ->
 bitjar_lookup(#bitjar{}=B, LookupList) -> lookup(B, LookupList, length(LookupList), []).
 
 bitjar_delete(#bitjar{state=#{dbref := Ref}}=B, DeleteList) ->
-	ok = eleveldb:write(Ref, lists:map(fun({Id, K}) -> {delete, <<Id:8, K/binary>>} end, DeleteList), []),
+	ok = eleveldb:write(Ref, lists:map(fun({_GroupName, Id, K}) -> {delete, <<Id:8, K/binary>>} end, DeleteList), []),
 	{ok, B}.
 
 bitjar_all(B, GroupId) -> bitjar_foldl(B, fun(K, V, Acc) -> [{K,V}|Acc] end, [], GroupId).
@@ -97,9 +84,10 @@ lookup(_B, [], _L, []) -> not_found;
 lookup(_B, [], L, Acc) when L =:= length(Acc) -> {ok, Acc};
 lookup(_B, [], _L, Acc) -> {partial, Acc};
 
-lookup(#bitjar{state=#{dbref := Ref}}=B, [{GroupId, Key}|T], L, Acc) ->
+lookup(#bitjar{state=#{dbref := Ref}}=B, [{GroupName,
+										   GroupId, Key}|T], L, Acc) ->
 	case eleveldb:get(Ref, <<GroupId:8, Key/binary>>, []) of
-		{ok, Value} -> lookup(B, T, L, [{Key, Value}|Acc]);
+		{ok, Value} -> lookup(B, T, L, [{GroupName, Key, Value}|Acc]);
 		_ -> lookup(B, T, L, Acc)
 	end.
 
@@ -130,9 +118,6 @@ last_id(#{}) -> 1;  %% Reserved for group lists
 last_id(GroupMap) ->
 	[Id|_] = lists:sort(fun({_,A}, {_,B}) -> A > B end, maps:to_list(GroupMap)),
 	Id.
-
-next_id(#bitjar{last_id = Id}) -> Id+1.
-
 
 run_fundefs(Defs, Datum) ->
 	try
