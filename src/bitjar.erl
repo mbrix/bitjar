@@ -47,7 +47,7 @@ behaviour_info(callbacks)->
      {bitjar_lookup, 2},
      {bitjar_delete, 2},
 	 {bitjar_all, 2},
-	 {bitjar_filter, 3},
+	 {bitjar_filter, 5},
 	 {bitjar_foldl, 4},
 	 {bitjar_default_options, 0}];
 
@@ -110,7 +110,11 @@ delete(B, GKList) ->
 all(#bitjar{mod=M, groups=G}=B, Group) ->
 	case maps:find(Group, G) of
 		error -> [];
-		{ok, GDef} ->  M:bitjar_all(B, GDef#bitjar_groupdef.groupid)
+		{ok, GDef} ->  
+			lists:map(fun({K,V}) ->
+							  {run_fun(GDef#bitjar_groupdef.kdeserializer, K),
+							   run_fun(GDef#bitjar_groupdef.vdeserializer, V)} end,
+							  M:bitjar_all(B, GDef#bitjar_groupdef.groupid))
 	end.
 
 filter(B, Fun, Group) when is_function(Fun) -> filter(B, [Fun], Group);
@@ -118,7 +122,11 @@ filter(B, Fun, Group) when is_function(Fun) -> filter(B, [Fun], Group);
 filter(#bitjar{mod=M, groups=G}=B, FilterFuns, Group) ->
 	case maps:find(Group, G) of
 		error -> [];
-		{ok, GDef} -> M:bitjar_filter(B, FilterFuns, GDef#bitjar_groupdef.groupid)
+		{ok, GDef} -> M:bitjar_filter(B, FilterFuns,
+									  GDef#bitjar_groupdef.groupid,
+									  GDef#bitjar_groupdef.kdeserializer,
+									  GDef#bitjar_groupdef.vdeserializer
+									  )
 	end.
 
 foldl(#bitjar{mod=M, groups=G}=B, Fun, StartAcc, Group) ->
@@ -223,10 +231,16 @@ add_group(#bitjar{mod=M, groups = G}=B, Identifier) ->
 			{ok, B2} = M:bitjar_store(B, [{?GROUP_ID,
 										 erlang:term_to_binary(Identifier),
 										 erlang:term_to_binary(NextId)}]),
-			Group = #bitjar_groupdef{groupid = NextId},
+			Group = #bitjar_groupdef{groupid = NextId,
+									 kserializer = fun null_fun/1,
+									 vserializer = fun null_fun/1,
+									 kdeserializer = fun null_fun/1,
+									 vdeserializer = fun null_fun/1},
 			{ok, B2#bitjar{last_id = NextId,
 						   groups = maps:put(Identifier, Group, G)},
 			 Group}
 	end.
 
 next_id(#bitjar{last_id = Id}) -> Id+1.
+
+null_fun(X) -> X.

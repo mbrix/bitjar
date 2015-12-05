@@ -123,6 +123,5 @@ leveldb_test_() ->
 			{"Serialize and deserialize", fun serialization/0}
    ]}.
 
-%%%%% Memory / Maps bitjar backend
-
 %%%%% Memory / ETS bitjar backend
+%%%

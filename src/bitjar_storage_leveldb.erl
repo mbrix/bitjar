@@ -18,7 +18,7 @@
 		 bitjar_lookup/2,
 		 bitjar_delete/2,
 		 bitjar_all/2,
-		 bitjar_filter/3,
+		 bitjar_filter/5,
 		 bitjar_foldl/4,
 		 bitjar_default_options/0]).
 
@@ -54,12 +54,16 @@ bitjar_delete(#bitjar{state=#{dbref := Ref}}=B, DeleteList) ->
 
 bitjar_all(B, GroupId) -> bitjar_foldl(B, fun(K, V, Acc) -> [{K,V}|Acc] end, [], GroupId).
 
-bitjar_filter(B, FilterFuns, GroupId) -> bitjar_foldl(B, fun(K, V, Acc) ->
-														 case run_fundefs(FilterFuns, {K,V}) of
-														 	 true -> [V|Acc];
-														 	 false -> Acc
-														 end
-														 end, [], GroupId).
+bitjar_filter(B, FilterFuns, GroupId, KdeserialFun, VdeserialFun) ->
+	bitjar_foldl(B, fun(K, V, Acc) ->
+							%% Lets decode the K, V values so that the fundefs can run on the deserialized form
+							K2 = KdeserialFun(K),
+							V2 = VdeserialFun(V),
+							case bitjar_helper:run_fundefs(FilterFuns, {K2,V2}) of
+								true -> [V|Acc];
+								false -> Acc
+							end
+					end, [], GroupId).
 
 bitjar_foldl(#bitjar{state=#{dbref := Ref}}, Fun, Start, GroupId) ->
 	try
@@ -118,19 +122,3 @@ last_id(#{}) -> 1;  %% Reserved for group lists
 last_id(GroupMap) ->
 	[Id|_] = lists:sort(fun({_,A}, {_,B}) -> A > B end, maps:to_list(GroupMap)),
 	Id.
-
-run_fundefs(Defs, Datum) ->
-	try
-		run_fundefs_do(Defs, Datum)
-	catch _:_ -> false
-	end.
-
-run_fundefs_do(F, Datum) when is_function(F) -> F(Datum);
-
-run_fundefs_do([], _) -> false;
-run_fundefs_do([D|T], Datum) ->
-	case D(Datum) of
-		true -> true;
-		false -> run_fundefs(T, Datum)
-	end.
-

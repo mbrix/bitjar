@@ -15,5 +15,5 @@ run_fundefs_do([], _) -> false;
 run_fundefs_do([D|T], Datum) ->
 	case D(Datum) of
 		true -> true;
-		false -> run_fundefs(T, Datum)
+		false -> run_fundefs_do(T, Datum)
 	end.
