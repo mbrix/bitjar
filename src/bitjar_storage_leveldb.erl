@@ -58,7 +58,7 @@ bitjar_filter(B, FilterFuns, GroupId, KdeserialFun, VdeserialFun) ->
 	bitjar_foldl(B, fun(K, V, Acc) ->
 							%% Lets decode the K, V values so that the fundefs can run on the deserialized form
 							K2 = KdeserialFun(K),
-							V2 = VdeserialFun(V),
+							V2 = VdeserialFun(K2, V),
 							case bitjar_helper:run_fundefs(FilterFuns, {K2,V2}) of
 								true -> [V|Acc];
 								false -> Acc

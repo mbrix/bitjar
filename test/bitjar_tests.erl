@@ -96,12 +96,13 @@ ldb_multistore() ->
 serialization() ->
 	{ok, B} = bitjar:open(leveldb, #{path => ?PATH}),
 	SerialFun = fun(E) -> erlang:term_to_binary(E) end,
-	DeserialFun = fun(E) -> erlang:binary_to_term(E) end,
+	KDeserialFun = fun(K) -> erlang:binary_to_term(K) end,
+	VDeserialFun = fun(_, E) -> erlang:binary_to_term(E) end,
 	{ok, B2} = bitjar:set_serializer(B, test,
 						  SerialFun, %% Key Serializer
 						  SerialFun, %% Value Serializer
-						  DeserialFun, %% Key Deserializer
-						  DeserialFun), %% Value Deserializer
+						  KDeserialFun, %% Key Deserializer
+						  VDeserialFun), %% Value Deserializer
 	{ok, B3} = bitjar:store(B2, [{test, mykey, "myvalue"}]),
 	?assertEqual({ok, [{test, mykey, "myvalue"}]},
 				 bitjar:lookup(B3, test, mykey)),

@@ -112,8 +112,9 @@ all(#bitjar{mod=M, groups=G}=B, Group) ->
 		error -> [];
 		{ok, GDef} ->  
 			lists:map(fun({K,V}) ->
-							  {run_fun(GDef#bitjar_groupdef.kdeserializer, K),
-							   run_fun(GDef#bitjar_groupdef.vdeserializer, V)} end,
+							  DK = run_fun(GDef#bitjar_groupdef.kdeserializer, K),
+							  {DK,
+							   run_fun(GDef#bitjar_groupdef.vdeserializer, DK, V)} end,
 							  M:bitjar_all(B, GDef#bitjar_groupdef.groupid))
 	end.
 
@@ -201,9 +202,8 @@ resolve_mod(leveldb) -> {mod, bitjar_storage_leveldb};
 resolve_mod(ets) -> {mod, bitjar_storage_ets};
 resolve_mod(X) -> {mod, X}.
 
-run_fun(undefined, V) when is_binary(V) -> V;
-run_fun(undefined, V) -> throw({no_serialization_definition, V});
-run_fun(Fun, V) -> Fun(V).
+run_fun(Fun, K) -> Fun(K).
+run_fun(Fun, K, V) -> Fun(K, V).
 
 %% XXX deserialization is not optimized
 
@@ -218,9 +218,10 @@ deserialize(G, [{Name, K, V}|T], Acc) ->
 
 deserialize_run(_Name, error, K, V) -> {K, V};
 deserialize_run(Name, {ok, GDef}, K, V) ->
+	DK = run_fun(GDef#bitjar_groupdef.kdeserializer, K),
 	{Name,
-	 run_fun(GDef#bitjar_groupdef.kdeserializer, K),
-	 run_fun(GDef#bitjar_groupdef.vdeserializer, V)}.
+	 DK,
+	 run_fun(GDef#bitjar_groupdef.vdeserializer, DK, V)}.
 
 
 add_group(#bitjar{mod=M, groups = G}=B, Identifier) ->
@@ -235,7 +236,7 @@ add_group(#bitjar{mod=M, groups = G}=B, Identifier) ->
 									 kserializer = fun null_fun/1,
 									 vserializer = fun null_fun/1,
 									 kdeserializer = fun null_fun/1,
-									 vdeserializer = fun null_fun/1},
+									 vdeserializer = fun null_fun/2},
 			{ok, B2#bitjar{last_id = NextId,
 						   groups = maps:put(Identifier, Group, G)},
 			 Group}
@@ -244,3 +245,4 @@ add_group(#bitjar{mod=M, groups = G}=B, Identifier) ->
 next_id(#bitjar{last_id = Id}) -> Id+1.
 
 null_fun(X) -> X.
+null_fun(_,Y) -> Y.
