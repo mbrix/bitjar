@@ -51,23 +51,13 @@ behaviour_info(callbacks)->
 	 {bitjar_foldl, 4},
 	 {bitjar_default_options, 0}];
 
+behaviour_info(_Other) -> undefined.
 
-%% Gen Behaviours
-behaviour_info(_Other)->
-    undefined.
-
-start() ->
-	application:ensure_all_started(lib_bitter).
-
-start(_, _) ->
- supervisor:start_link({local,?MODULE},?MODULE,[]).
-
-stop() -> application:stop(lib_bitter).
-
+start() -> application:ensure_all_started(bitjar).
+start(_, _) -> supervisor:start_link({local,?MODULE},?MODULE,[]).
+stop() -> application:stop(bitjar).
 stop(_) -> ok.
-
-init([]) ->
- {ok, {{one_for_one,3,10},[]}}.
+init([]) ->{ok, {{one_for_one,3,10},[]}}.
 
 %% Bitjar public interface
 
@@ -96,13 +86,31 @@ store(B, GKVList) ->
 	{ok, B2, TransformedList} = resolve_gkvlist(B, GKVList),
 	do_store(B2, TransformedList).
 
+%% Stacked lookups
+lookup([B|T], Group, Key) -> stack_lookup(T, lookup(B, Group, Key), [{Group, Key}], []);
+
 lookup(B, Group, Key) -> lookup(B, [{Group, Key}]).
+
+lookup([B|T], GKList) -> stack_lookup(T, lookup(B, GKList), GKList, []);
 lookup(B, GKList) ->
 	{ok, B2, TransformedList} = resolve_gklist(B, GKList),
 	do_lookup(B2, TransformedList).
-	
 
+stack_lookup([], not_found, _LastLookup, []) -> not_found;
+stack_lookup([], not_found, LastLookup, Res) -> {partial, Res, LastLookup};
+stack_lookup(_, not_found, [], Res) -> {ok, Res};
+stack_lookup([B|T], not_found, Left, Res) -> stack_lookup(T, lookup(B, Left), Left, Res);
+stack_lookup(_, {ok, Results}, _Left, Res) -> {ok, Res ++ Results};
+stack_lookup([], {partial, Results, Remaining}, _Left, Res) -> {partial, Res ++ Results, Remaining};
+stack_lookup([B|T], {partial, Results, Remaining}, _Left, Res) -> stack_lookup(T, lookup(B, Remaining), Remaining, Res ++ Results).
+
+stack_delete([], {ok, B2}, _, Res) -> lists:reverse([B2|Res]);
+stack_delete([B|T], {ok, B2}, GKList, Res) -> stack_delete(T, delete(B, GKList), GKList, [B2|Res]).
+
+delete([B|T], Group, Key) -> stack_delete(T, delete(B, Group, Key), [{Group, Key}], []);
 delete(B, Group, Key) -> delete(B, [{Group, Key}]).
+
+delete([B|T], GKList) -> stack_delete(T, delete(B, GKList), GKList, []);
 delete(B, GKList) ->
 	{ok, B2, TransformedList} = resolve_gklist(B, GKList),
 	do_delete(B2, TransformedList).
@@ -209,7 +217,9 @@ run_fun(Fun, K, V) -> Fun(K, V).
 
 deserialize(#bitjar{}, not_found) -> not_found;
 deserialize(#bitjar{groups=G}, {ResCode, Results}) ->
-	{ResCode, deserialize(G, Results, [])}.
+	{ResCode, deserialize(G, Results, [])};
+deserialize(#bitjar{groups=G}, {ResCode, Results, Remaining}) ->
+	{ResCode, deserialize(G, Results, []), Remaining}.
 
 deserialize(_G, [], Acc) -> lists:reverse(Acc);
 deserialize(G, [{Name, K, V}|T], Acc) ->

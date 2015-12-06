@@ -42,7 +42,7 @@ ldb_lookup() ->
 	{ok, B3} = bitjar:store(B2, test, <<"key2">>, <<"value">>),
 	{ok, B4} = bitjar:store(B3, test2, <<"key">>, <<"value">>),
 	{ok, [{test2, <<"key">>, <<"value">>}]} = bitjar:lookup(B4, test2, <<"key">>),
-	{partial, _} = bitjar:lookup(B4, [{test, <<"key">>}, {test, <<"key2">>}, {test, <<"key3">>}]),
+	{partial, _, _} = bitjar:lookup(B4, [{test, <<"key">>}, {test, <<"key2">>}, {test, <<"key3">>}]),
 	{ok, _} = bitjar:lookup(B4, [{test, <<"key">>}, {test, <<"key2">>}, {test2, <<"key">>}]),
 	ok = bitjar:close(B4).
 

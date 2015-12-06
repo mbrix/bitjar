@@ -37,7 +37,7 @@ bitjar_default_options() -> [set, {keypos, 1}, {read_concurrency, true}].
 
 bitjar_store(#bitjar{}=B, StoreList) -> store(B, StoreList).
 
-bitjar_lookup(#bitjar{}=B, LookupList) -> lookup(B, LookupList, length(LookupList), []).
+bitjar_lookup(#bitjar{}=B, LookupList) -> lookup(B, LookupList, length(LookupList), [], []).
 
 bitjar_delete(#bitjar{}=B, DeleteList) -> delete(B, DeleteList).
 
@@ -68,19 +68,21 @@ do_store({ok, Ref}, _B, K, V) ->
 	true = ets:insert(Ref, {K, V}),
 	ok.
 
-lookup(_B, [], _L, []) -> not_found;
-lookup(_B, [], L, Acc) when L =:= length(Acc) -> {ok, Acc};
-lookup(_B, [], _L, Acc) -> {partial, Acc};
+lookup(_B, [], _L, [], _) -> not_found;
+lookup(_B, [], _L, Acc, []) -> {ok, Acc};
+lookup(_B, [], _L, Acc, LeftOver) -> {partial, Acc, LeftOver};
 
-lookup(#bitjar{state=#{refmap := RefMap}}=B, [{GroupName, GroupId, Key}|T], L, Acc) ->
-	AccOut = lookup_ets(maps:find(GroupId, RefMap), GroupName, Key, Acc),
-	lookup(B, T, L, AccOut).
+lookup(#bitjar{state=#{refmap := RefMap}}=B, [{GroupName, GroupId, Key}|T], L, Acc, LeftOver) ->
+	case lookup_ets(maps:find(GroupId, RefMap), GroupName, Key, Acc) of
+		not_found -> lookup(B, T, L, Acc, [{GroupName, Key}|LeftOver]);
+		NewAcc -> lookup(B, T, L, NewAcc, LeftOver)
+	end.
 
 lookup_ets(error, _GroupName, _Key, Acc) -> Acc;
 lookup_ets({ok, Ref}, GroupName, Key, Acc) ->
 	case ets:lookup(Ref, Key) of
 		[{K,V}] -> [{GroupName, K, V}|Acc];
-		_ -> Acc
+		_ -> not_found
 	end.
 
 delete(B, []) -> {ok, B};

@@ -46,7 +46,7 @@ bitjar_store(#bitjar{state=#{dbref := Ref}}=B, StoreList) ->
 	ok = eleveldb:write(Ref, lists:map(fun({Id, K, V}) -> {put, <<Id:8, K/binary>>, V} end, StoreList), []),
 	{ok, B}.
 
-bitjar_lookup(#bitjar{}=B, LookupList) -> lookup(B, LookupList, length(LookupList), []).
+bitjar_lookup(#bitjar{}=B, LookupList) -> lookup(B, LookupList, length(LookupList), [], []).
 
 bitjar_delete(#bitjar{state=#{dbref := Ref}}=B, DeleteList) ->
 	ok = eleveldb:write(Ref, lists:map(fun({_GroupName, Id, K}) -> {delete, <<Id:8, K/binary>>} end, DeleteList), []),
@@ -84,15 +84,15 @@ bitjar_foldl(#bitjar{state=#{dbref := Ref}}, Fun, Start, GroupId) ->
 %%% Internal functions
 %%%===================================================================
 
-lookup(_B, [], _L, []) -> not_found;
-lookup(_B, [], L, Acc) when L =:= length(Acc) -> {ok, Acc};
-lookup(_B, [], _L, Acc) -> {partial, Acc};
+lookup(_B, [], _L, [], _) -> not_found;
+lookup(_B, [], _L, Acc, []) -> {ok, Acc};
+lookup(_B, [], _L, Acc, LeftOver) -> {partial, Acc, LeftOver};
 
 lookup(#bitjar{state=#{dbref := Ref}}=B, [{GroupName,
-										   GroupId, Key}|T], L, Acc) ->
+										   GroupId, Key}|T], L, Acc, LeftOver) ->
 	case eleveldb:get(Ref, <<GroupId:8, Key/binary>>, []) of
-		{ok, Value} -> lookup(B, T, L, [{GroupName, Key, Value}|Acc]);
-		_ -> lookup(B, T, L, Acc)
+		{ok, Value} -> lookup(B, T, L, [{GroupName, Key, Value}|Acc], LeftOver);
+		_ -> lookup(B, T, L, Acc, [{GroupName, Key}|LeftOver])
 	end.
 
 
