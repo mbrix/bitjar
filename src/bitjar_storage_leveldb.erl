@@ -16,6 +16,7 @@
 		 bitjar_shutdown/1,
 		 bitjar_store/2,
 		 bitjar_lookup/2,
+		 bitjar_range/2,
 		 bitjar_delete/2,
 		 bitjar_all/2,
 		 bitjar_filter/5,
@@ -47,6 +48,8 @@ bitjar_store(#bitjar{state=#{dbref := Ref}}=B, StoreList) ->
 	{ok, B}.
 
 bitjar_lookup(#bitjar{}=B, LookupList) -> lookup(B, LookupList, length(LookupList), [], []).
+
+bitjar_range(#bitjar{}=B, RangeList) -> range(B, RangeList, [], []).
 
 bitjar_delete(#bitjar{state=#{dbref := Ref}}=B, DeleteList) ->
 	ok = eleveldb:write(Ref, lists:map(fun({_GroupName, Id, K}) -> {delete, <<Id:8, K/binary>>} end, DeleteList), []),
@@ -94,6 +97,35 @@ lookup(#bitjar{state=#{dbref := Ref}}=B, [{GroupName,
 		{ok, Value} -> lookup(B, T, L, [{GroupName, Key, Value}|Acc], LeftOver);
 		_ -> lookup(B, T, L, Acc, [{GroupName, Key}|LeftOver])
 	end.
+
+range(_B, [], [], _) -> not_found;
+range(_B, [], Acc, []) -> {ok, Acc};
+range(_B, [], Acc, LeftOver) -> {partial, Acc, LeftOver};
+
+range(#bitjar{state=#{dbref := Ref}}=B, [{GroupName, GroupId, Key}|T], Start, LeftOver) ->
+	Results = 
+		try
+	    Res = eleveldb:fold(Ref, fun({<<G:8, RawKey/binary>>, V}, Acc) -> 
+	    						   case G of
+	    						   	   GroupId -> 
+										   case binary:match(RawKey, Key) of
+											   {0,_} -> [{GroupName, Key, V}|Acc]; 
+										   	   _ -> throw({done, Acc})
+									   end;
+	    						   	   _ -> throw({done, Acc})
+								   end;
+							  (_,Acc) -> throw({done, Acc})
+						   end, Start, [{first_key, <<GroupId:8, Key/binary>>}]),
+		lists:reverse(Res)
+	catch
+		throw:{done, Acc} -> lists:reverse(Acc)
+	end,
+		if length(Results) =/= length(Start) ->
+			   range(B, T, Results, LeftOver);
+		   true ->
+		   	   %% Nothing was added to our results
+		   	   range(B, T, Results, [{GroupName, Key}|LeftOver])
+		end.
 
 
 init_leveldb(Options) ->

@@ -17,6 +17,7 @@
 		 bitjar_shutdown/1,
 		 bitjar_store/2,
 		 bitjar_lookup/2,
+		 bitjar_range/2,
 		 bitjar_delete/2,
 		 bitjar_all/2,
 		 bitjar_filter/5,
@@ -33,11 +34,13 @@ bitjar_shutdown(#bitjar{state = #{refmap := R}}) ->
 	maps:fold(fun(_K, V, _AccIn) -> true = ets:delete(V) end, ok, R),
 	ok.
 
-bitjar_default_options() -> [set, {keypos, 1}, {read_concurrency, true}].
+bitjar_default_options() -> [ordered_set, {keypos, 1}, {read_concurrency, true}].
 
 bitjar_store(#bitjar{}=B, StoreList) -> store(B, StoreList).
 
 bitjar_lookup(#bitjar{}=B, LookupList) -> lookup(B, LookupList, length(LookupList), [], []).
+
+bitjar_range(#bitjar{}=B, RangeList) -> range(B, RangeList, [], []).
 
 bitjar_delete(#bitjar{}=B, DeleteList) -> delete(B, DeleteList).
 
@@ -82,7 +85,36 @@ lookup_ets(error, _GroupName, _Key, Acc) -> Acc;
 lookup_ets({ok, Ref}, GroupName, Key, Acc) ->
 	case ets:lookup(Ref, Key) of
 		[{K,V}] -> [{GroupName, K, V}|Acc];
-		_ -> not_found
+		[] -> not_found
+	end.
+
+range(_B, [], [], _) -> not_found;
+range(_B, [], Acc, []) -> {ok, Acc};
+range(_B, [], Acc, LeftOver) -> {partial, Acc, LeftOver};
+
+%% A range query presumably has the Key in the correct format for this group
+%% in order to do a sub select of an ordered_set ets table.
+range(#bitjar{state=#{refmap := RefMap}}=B, [{GroupName, GroupId, Key}|T], Acc, LeftOver) ->
+	case do_range_lookup(maps:find(GroupId, RefMap), GroupName, Key, Acc) of
+		not_found -> range(B, T, Acc, [{GroupName, Key}|LeftOver]);
+		NewAcc -> range(B, T, NewAcc, LeftOver)
+	end.
+
+do_range_lookup(error, _GroupName, _Key, Acc) -> Acc;
+do_range_lookup({ok, Ref}, GroupName, Key, Acc) ->
+	MatchSpec = [{{{Key, '_'},'_'},
+				  [],['$_']}],
+	case ets:select(Ref, MatchSpec, 100) of
+		'$end_of_table' -> Acc;
+		{Matches, Continuation} ->  
+			do_range_lookup(Continuation, GroupName, lists:map(fun({K,V}) -> {GroupName, K, V} end, Matches) ++ Acc)
+	end.
+
+do_range_lookup(Continuation, GroupName, Acc) ->
+	case ets:select(Continuation) of 
+		'$end_of_table' -> Acc;
+		{Matches, Continuation} ->
+			do_range_lookup(Continuation, GroupName, lists:map(fun({K,V}) -> {GroupName, K, V} end, Matches) ++ Acc)
 	end.
 
 delete(B, []) -> {ok, B};

@@ -25,6 +25,8 @@
 		 all/2,
 		 filter/3,
 		 foldl/4,
+		 range/2,
+		 range/3,
 		 behaviour_info/1]).
 
 -behaviour(application).
@@ -45,6 +47,7 @@ behaviour_info(callbacks)->
 	 {bitjar_shutdown, 1},
 	 {bitjar_store, 2},
      {bitjar_lookup, 2},
+	 {bitjar_range, 2},
      {bitjar_delete, 2},
 	 {bitjar_all, 2},
 	 {bitjar_filter, 5},
@@ -95,6 +98,22 @@ lookup([B|T], GKList) -> stack_lookup(T, lookup(B, GKList), GKList, []);
 lookup(B, GKList) ->
 	{ok, B2, TransformedList} = resolve_gklist(B, GKList),
 	do_lookup(B2, TransformedList).
+
+range([B|T], Group, Key) -> stack_range(T, range(B, Group, Key), [{Group, Key}], []);
+range(B, Group, Key) -> range(B, [{Group, Key}]).
+
+range([B|T], GKList) -> stack_range(T, range(B, GKList), GKList, []);
+range(B, GKList) ->
+	{ok, B2, TransformedList} = resolve_gklist(B, GKList),
+	do_range(B2, TransformedList).
+
+stack_range([], not_found, _LastLookup, []) -> not_found;
+stack_range([], not_found, LastLookup, Res) -> {partial, Res, LastLookup};
+stack_range(_, not_found, [], Res) -> {ok, Res};
+stack_range([B|T], not_found, Left, Res) -> stack_range(T, lookup(B, Left), Left, Res);
+stack_range(_, {ok, Results}, _Left, Res) -> {ok, Res ++ Results};
+stack_range([], {partial, Results, Remaining}, _Left, Res) -> {partial, Res ++ Results, Remaining};
+stack_range([B|T], {partial, Results, Remaining}, _Left, Res) -> stack_range(T, lookup(B, Remaining), Remaining, Res ++ Results).
 
 stack_lookup([], not_found, _LastLookup, []) -> not_found;
 stack_lookup([], not_found, LastLookup, Res) -> {partial, Res, LastLookup};
@@ -184,6 +203,10 @@ do_store(#bitjar{mod=M}=B, GKVList) -> M:bitjar_store(B, GKVList).
 do_lookup(_, []) -> not_found;
 do_lookup(#bitjar{mod=M}=B, GKList) ->
 	deserialize(B, M:bitjar_lookup(B, GKList)).
+
+do_range(_, []) -> not_found;
+do_range(#bitjar{mod=M}=B, GKList) ->
+	deserialize(B, M:bitjar_range(B, GKList)).
 
 do_delete(B, []) -> {ok, B};
 do_delete(#bitjar{mod=M}=B, GKList) -> M:bitjar_delete(B, GKList).

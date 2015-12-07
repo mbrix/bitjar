@@ -105,6 +105,18 @@ serialization() ->
 				 bitjar:lookup(B3, test, mykey)),
 	ok = bitjar:close(B2).
 
+range() ->
+	{ok, B} = bitjar:open(ets, []),
+	{ok, B2} = bitjar:store(B, [{test, {<<"key">>, 1}, <<"value">>},
+								{test, {<<"key">>, 2}, <<"value2">>},
+								{test, {<<"key">>, 3}, <<"value3">>},
+								{test, {<<"key">>, 4}, <<"value4">>},
+								{test, {<<"key">>, 5}, <<"value5">>},
+								{test, {<<"otherkey">>,1}, <<"value">>}]),
+	{ok, Values} = bitjar:range(B2, test, <<"key">>),
+	?assertEqual(5, length(Values)).
+
+
 leveldb_test_() -> 
   {foreach,
   fun start/0,
@@ -118,7 +130,8 @@ leveldb_test_() ->
 			{"fold", fun foldl/0},
 			{"filter", fun filter/0},
 			{"multistore", fun multistore/0},
-			{"serialization", fun serialization/0}
+			{"serialization", fun serialization/0},
+			{"range", fun range/0}
    ]}.
 
 %%%%% Memory / ETS bitjar backend

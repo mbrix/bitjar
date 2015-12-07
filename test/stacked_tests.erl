@@ -39,6 +39,25 @@ stacked_delete() ->
 	ok = bitjar:close(L3),
 	ok = bitjar:close(E4).
 
+stacked_range() ->
+	{ok, L} = bitjar:open(leveldb, #{path => ?PATH}),
+	{ok, E} = bitjar:open(ets, []),
+	{ok, L2} = bitjar:store(L, [{test, <<"key">>, <<"value">>},
+	                            {test, <<"key2">>, <<"value2">>},
+								{test, <<"key3">>, <<"value3">>},
+								{test, <<"other">>, <<"value">>}]),
+
+	{ok, E2} = bitjar:store(E, [{test, {<<"key">>, 1}, <<"value">>},
+	                           {test, {<<"key">>, 2}, <<"value2">>},
+							   {test, {<<"key">>, 3}, <<"value3">>},
+							   {test, {<<"other">>, 4}, <<"value">>}]),
+	%% STACKed range lookup
+	{ok, Res} = bitjar:range([L2, E2], [{test, <<"key">>},
+	                                    {test, <<"key">>}]),
+	?assertEqual(6, length(Res)),
+	ok = bitjar:close(L2),
+	ok = bitjar:close(E2).
+	
 
 leveldb_test_() -> 
   {foreach,
@@ -46,5 +65,6 @@ leveldb_test_() ->
   fun stop/1,
    [
 			{"Stacked lookup", fun stacked_lookup/0},
-			{"Stacked delete", fun stacked_delete/0}
+			{"Stacked delete", fun stacked_delete/0},
+			{"Stacked range", fun stacked_range/0}
    ]}.
