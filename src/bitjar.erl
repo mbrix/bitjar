@@ -10,6 +10,7 @@
 -export([open/1,
 		 open/2,
 		 set_serializer/6,
+		 set_serializers/2,
 		 set_key_serializer/3,
 		 set_key_deserializer/3,
 		 set_value_serializer/3,
@@ -176,6 +177,11 @@ set_serializer(B,
 	{ok, B3} = set_value_serializer(B2, Group, ValueSerializerFun),
 	{ok, B4} = set_key_deserializer(B3, Group,KeyDeserializerFun),
 	set_value_deserializer(B4, Group, ValueDeserializerFun).
+
+set_serializers(B, []) -> {ok, B};
+set_serializers(B, [[Group, KS, VS, KD, VD]|T]) ->
+	{ok, B2} = set_serializer(B, Group, KS, VS, KD, VD),
+	set_serializers(B2, T).
 
 set_key_serializer(#bitjar{groups=G}=B, Group, Fun) ->
 	{ok, B2, GDef} = add_group(B, Group),

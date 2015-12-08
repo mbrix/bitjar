@@ -103,7 +103,20 @@ serialization() ->
 	{ok, B3} = bitjar:store(B2, [{test, mykey, "myvalue"}]),
 	?assertEqual({ok, [{test, mykey, "myvalue"}]},
 				 bitjar:lookup(B3, test, mykey)),
-	ok = bitjar:close(B2).
+	%% Multiple serialization setup
+	{ok, B4} = bitjar:set_serializers(B, [
+										  [test2,
+										   SerialFun,
+										   SerialFun,
+										   KDeserialFun,
+										   VDeserialFun],
+										  [test3,
+										   SerialFun,
+										   SerialFun,
+										   KDeserialFun,
+										   VDeserialFun]
+										 ]),
+	ok = bitjar:close(B4).
 
 range() ->
 	{ok, B} = bitjar:open(ets, []),
