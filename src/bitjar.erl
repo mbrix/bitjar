@@ -23,6 +23,7 @@
 		 lookup/3,
 		 delete/2,
 		 delete/3,
+		 delete_then_store/3,
 		 all/2,
 		 filter/3,
 		 foldl/4,
@@ -135,6 +136,11 @@ delete(B, GKList) ->
 	{ok, B2, TransformedList} = resolve_gklist(B, GKList),
 	do_delete(B2, TransformedList).
 
+delete_then_store(B, GKList, GKVList) ->
+	{ok, B2, DeleteList} = resolve_gklist(B, GKList),
+	{ok, B3, StoreList} = resolve_gkvlist(B2, GKVList),
+	do_delete_then_store(B3, DeleteList, StoreList).
+
 all(#bitjar{mod=M, groups=G}=B, Group) ->
 	case maps:find(Group, G) of
 		error -> [];
@@ -216,6 +222,9 @@ do_range(#bitjar{mod=M}=B, GKList) ->
 
 do_delete(B, []) -> {ok, B};
 do_delete(#bitjar{mod=M}=B, GKList) -> M:bitjar_delete(B, GKList).
+
+do_delete_then_store(B, [], []) -> {ok, B};
+do_delete_then_store(#bitjar{mod=M}=B, GKList, GKVList) -> M:bitjar_delete_then_store(B, GKList, GKVList).
 
 resolve_gkvlist(B, L) -> resolve_gkvlist(B, L, []).
 resolve_gkvlist(B, [], Acc) -> {ok, B, Acc};

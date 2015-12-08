@@ -18,6 +18,7 @@
 		 bitjar_lookup/2,
 		 bitjar_range/2,
 		 bitjar_delete/2,
+		 bitjar_delete_then_store/3,
 		 bitjar_all/2,
 		 bitjar_filter/5,
 		 bitjar_foldl/4,
@@ -44,7 +45,7 @@ bitjar_default_options() ->
 	  storage_options => [{create_if_missing, true}]}.
 
 bitjar_store(#bitjar{state=#{dbref := Ref}}=B, StoreList) ->
-	ok = eleveldb:write(Ref, lists:map(fun({Id, K, V}) -> {put, <<Id:8, K/binary>>, V} end, StoreList), []),
+	ok = eleveldb:write(Ref, map_store(StoreList), []),
 	{ok, B}.
 
 bitjar_lookup(#bitjar{}=B, LookupList) -> lookup(B, LookupList, length(LookupList), [], []).
@@ -52,7 +53,15 @@ bitjar_lookup(#bitjar{}=B, LookupList) -> lookup(B, LookupList, length(LookupLis
 bitjar_range(#bitjar{}=B, RangeList) -> range(B, RangeList, [], []).
 
 bitjar_delete(#bitjar{state=#{dbref := Ref}}=B, DeleteList) ->
-	ok = eleveldb:write(Ref, lists:map(fun({_GroupName, Id, K}) -> {delete, <<Id:8, K/binary>>} end, DeleteList), []),
+	ok = eleveldb:write(Ref, map_delete(DeleteList), []),
+	{ok, B}.
+
+map_delete(DeleteList) -> lists:map(fun({_GroupName, Id, K}) -> {delete, <<Id:8, K/binary>>} end, DeleteList).
+map_store(StoreList) -> lists:map(fun({Id, K, V}) -> {put, <<Id:8, K/binary>>, V} end, StoreList).
+
+
+bitjar_delete_then_store(#bitjar{state=#{dbref := Ref}}=B, DeleteList, StoreList) ->
+	ok = eleveldb:write(Ref, lists:flatten([map_delete(DeleteList)|map_store(StoreList)]), []),
 	{ok, B}.
 
 bitjar_all(B, GroupId) -> bitjar_foldl(B, fun(K, V, Acc) -> [{K,V}|Acc] end, [], GroupId).

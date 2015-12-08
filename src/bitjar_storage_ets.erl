@@ -19,6 +19,7 @@
 		 bitjar_lookup/2,
 		 bitjar_range/2,
 		 bitjar_delete/2,
+		 bitjar_delete_then_store/3,
 		 bitjar_all/2,
 		 bitjar_filter/5,
 		 bitjar_foldl/4,
@@ -43,6 +44,10 @@ bitjar_lookup(#bitjar{}=B, LookupList) -> lookup(B, LookupList, length(LookupLis
 bitjar_range(#bitjar{}=B, RangeList) -> range(B, RangeList, [], []).
 
 bitjar_delete(#bitjar{}=B, DeleteList) -> delete(B, DeleteList).
+
+bitjar_delete_then_store(B, DeleteList, StoreList) ->
+	{ok, B2} = delete(B, DeleteList),
+	store(B2, StoreList).
 
 bitjar_all(#bitjar{}=B, GroupId) -> all(B, GroupId).
 

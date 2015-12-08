@@ -129,6 +129,19 @@ range() ->
 	{ok, Values} = bitjar:range(B2, test, <<"key">>),
 	?assertEqual(5, length(Values)).
 
+delete_then_store() ->
+	{ok, B} = bitjar:open(ets, []),
+	{ok, B2} = bitjar:store(B, [{test, <<"key">>, <<"value">>},
+								{test, <<"key2">>, <<"value2">>},
+								{test, <<"key3">>, <<"value3">>}]),
+	{ok, B3} = bitjar:delete_then_store(B2,
+							[{test, <<"key">>}, {test, <<"key2">>}, {test, <<"key3">>}],
+							[{test, <<"key5">>, <<"blah">>}]),
+	?assertMatch([{<<"key5">>, <<"blah">>}], bitjar:all(B3, test)),
+	ok = bitjar:close(B3).
+
+
+
 
 leveldb_test_() -> 
   {foreach,
@@ -144,7 +157,8 @@ leveldb_test_() ->
 			{"filter", fun filter/0},
 			{"multistore", fun multistore/0},
 			{"serialization", fun serialization/0},
-			{"range", fun range/0}
+			{"range", fun range/0},
+			{"delete then store", fun delete_then_store/0}
    ]}.
 
 %%%%% Memory / ETS bitjar backend
