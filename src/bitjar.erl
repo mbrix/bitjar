@@ -53,7 +53,7 @@ behaviour_info(callbacks)->
      {bitjar_delete, 2},
 	 {bitjar_all, 2},
 	 {bitjar_filter, 5},
-	 {bitjar_foldl, 4},
+	 {bitjar_foldl, 6},
 	 {bitjar_default_options, 0}];
 
 behaviour_info(_Other) -> undefined.
@@ -167,7 +167,10 @@ filter(#bitjar{mod=M, groups=G}=B, FilterFuns, Group) ->
 foldl(#bitjar{mod=M, groups=G}=B, Fun, StartAcc, Group) ->
 	case maps:find(Group, G) of
 		error -> StartAcc;
-		{ok, GDef} -> M:bitjar_foldl(B, Fun, StartAcc, GDef#bitjar_groupdef.groupid)
+		{ok, GDef} -> M:bitjar_foldl(B, Fun, StartAcc,
+									 GDef#bitjar_groupdef.groupid,
+									 GDef#bitjar_groupdef.kdeserializer,
+									 GDef#bitjar_groupdef.vdeserializer)
 	end.
 
 %% Inline serialization code

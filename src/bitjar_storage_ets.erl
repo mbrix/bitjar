@@ -22,7 +22,7 @@
 		 bitjar_delete_then_store/3,
 		 bitjar_all/2,
 		 bitjar_filter/5,
-		 bitjar_foldl/4,
+		 bitjar_foldl/6,
 		 bitjar_default_options/0]).
 
 -define(GROUP_ID, 1).
@@ -53,7 +53,7 @@ bitjar_all(#bitjar{}=B, GroupId) -> all(B, GroupId).
 
 bitjar_filter(B, FilterFuns, GroupId, KdeserialFun, VdeserialFun) -> filter(B, FilterFuns, GroupId, KdeserialFun, VdeserialFun).
 
-bitjar_foldl(#bitjar{}=B, Fun, Start, GroupId) -> foldl(B, Fun, Start, GroupId).
+bitjar_foldl(#bitjar{}=B, Fun, Start, GroupId, KdeserialFun, VdeserialFun) -> foldl(B, Fun, Start, GroupId, KdeserialFun, VdeserialFun).
 
 
 
@@ -140,19 +140,20 @@ all(#bitjar{state=#{refmap := R}}, GroupId) ->
 
 filter(B, FilterFuns, GroupId, KdeserialFun, VdeserialFun) ->
 	foldl(B, fun(K, V, Acc) ->
-					 K2 = KdeserialFun(K),
-					 V2 = VdeserialFun(K2, V),
-					 case bitjar_helper:run_fundefs(FilterFuns, {K2, V2}) of
+					 case bitjar_helper:run_fundefs(FilterFuns, {K, V}) of
 					 	 true -> [V|Acc];
 					 	 false -> Acc
 					 end
-			 end, [], GroupId).
+			 end, [], GroupId, KdeserialFun, VdeserialFun).
 
-foldl(#bitjar{state=#{refmap := R}}, Fun, Start, GroupId) ->
-	ets_foldl(maps:find(GroupId, R), Fun, Start).
+foldl(#bitjar{state=#{refmap := R}}, Fun, Start, GroupId, KdeserialFun, VdeserialFun) ->
+	ets_foldl(maps:find(GroupId, R), Fun, Start, KdeserialFun, VdeserialFun).
 
-ets_foldl(error, _, Start) -> Start;
-ets_foldl({ok, Ref}, Fun, Start) ->
-	lists:reverse(ets:foldl(fun({K,V}, Acc) -> Fun(K, V, Acc) end, Start, Ref)).
+ets_foldl(error, _, Start, _kfun, _vfun) -> Start;
+ets_foldl({ok, Ref}, Fun, Start, KdeserialFun, VdeserialFun) ->
+	lists:reverse(ets:foldl(fun({K,V}, Acc) -> 
+									K2 = KdeserialFun(K),
+									V2 = VdeserialFun(K2, V),
+									Fun(K2, V2, Acc) end, Start, Ref)).
 
 
