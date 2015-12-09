@@ -23,12 +23,13 @@
 		 bitjar_all/2,
 		 bitjar_filter/5,
 		 bitjar_foldl/6,
+		 bitjar_new_group/2,
 		 bitjar_default_options/0]).
 
 -define(GROUP_ID, 1).
 
 bitjar_init(Options) ->
-	{ok, #{refmap => #{},
+	{ok, #{refmap => #{?GROUP_ID => ets:new(jar, Options)},
 		   options => lists:merge(bitjar_default_options(), Options)}, ?GROUP_ID, #{}}. 
 
 bitjar_shutdown(#bitjar{state = #{refmap := R}}) ->
@@ -55,22 +56,22 @@ bitjar_filter(B, FilterFuns, GroupId, KdeserialFun, VdeserialFun) -> filter(B, F
 
 bitjar_foldl(#bitjar{}=B, Fun, Start, GroupId, KdeserialFun, VdeserialFun) -> foldl(B, Fun, Start, GroupId, KdeserialFun, VdeserialFun).
 
+bitjar_new_group(#bitjar{state=#{options := O,
+								 refmap := R}=S}=B, Id) ->
+	Ref = ets:new(jar, O),
+	{ok, B#bitjar{state=S#{refmap => maps:put(Id, Ref, R)}}}.
 
 
 %% Internal Functions
 
 store(B, []) -> {ok, B};
-store(#bitjar{state=#{refmap := R}=S}=B, [{Id, K, V}|T]) ->
+store(#bitjar{state=#{refmap := R}}=B, [{Id, K, V}|T]) ->
 	case do_store(maps:find(Id, R), B, K, V) of
 		ok -> store(B, T);
-		{newref, Ref} -> store(B#bitjar{state=S#{refmap => maps:put(Id, Ref, R)}}, T)
+		error -> error
 	end.
 
-do_store(error, #bitjar{state=#{options := O}}, K, V) ->
-	lager:info("OPTIONS: ~p~n", [O]),
-	Ref = ets:new(jar, O),
-	true = ets:insert(Ref, {K, V}),
-	{newref, Ref};
+do_store(error, _, _, _) -> error;
 
 do_store({ok, Ref}, _B, K, V) ->
 	true = ets:insert(Ref, {K, V}),

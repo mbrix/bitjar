@@ -54,6 +54,7 @@ behaviour_info(callbacks)->
 	 {bitjar_all, 2},
 	 {bitjar_filter, 5},
 	 {bitjar_foldl, 6},
+	 {bitjar_new_group, 2},
 	 {bitjar_default_options, 0}];
 
 behaviour_info(_Other) -> undefined.
@@ -280,15 +281,16 @@ add_group(#bitjar{mod=M, groups = G}=B, Identifier) ->
 		{ok, Val} -> {ok, B, Val};
 		error -> 
 			NextId = next_id(B),
-			{ok, B2} = M:bitjar_store(B, [{?GROUP_ID,
-										 erlang:term_to_binary(Identifier),
-										 erlang:term_to_binary(NextId)}]),
 			Group = #bitjar_groupdef{groupid = NextId,
 									 kserializer = fun null_fun/1,
 									 vserializer = fun null_fun/1,
 									 kdeserializer = fun null_fun/1,
 									 vdeserializer = fun null_fun/2},
-			{ok, B2#bitjar{last_id = NextId,
+			{ok, B2} = M:bitjar_new_group(B, NextId),
+			{ok, B3} = M:bitjar_store(B2, [{?GROUP_ID,
+										 erlang:term_to_binary(Identifier),
+										 erlang:term_to_binary(NextId)}]),
+			{ok, B3#bitjar{last_id = NextId,
 						   groups = maps:put(Identifier, Group, G)},
 			 Group}
 	end.

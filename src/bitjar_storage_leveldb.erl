@@ -22,6 +22,7 @@
 		 bitjar_all/2,
 		 bitjar_filter/5,
 		 bitjar_foldl/6,
+		 bitjar_new_group/2,
 		 bitjar_default_options/0]).
 
 -define(GROUP_ID, 1).
@@ -92,6 +93,8 @@ bitjar_foldl(#bitjar{state=#{dbref := Ref}}, Fun, Start, GroupId, KdeserialFun, 
 	catch
 		throw:{done, Acc} -> Acc
 	end.
+
+bitjar_new_group(Bitjar, _Id) -> {ok, Bitjar}.
 
 
 %%%===================================================================
