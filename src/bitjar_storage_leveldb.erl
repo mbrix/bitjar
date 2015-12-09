@@ -147,7 +147,8 @@ init_leveldb(Options) ->
 init_groups(Ref) ->
 	try
 	    eleveldb:fold(Ref, fun({<<?GROUP_ID:8, Key/binary>>, V}, Acc) ->
-	    						   maps:put(erlang:binary_to_term(Key), erlang:binary_to_term(V), Acc);
+	    						   maps:put(erlang:binary_to_term(Key), 
+											#bitjar_groupdef{groupid = erlang:binary_to_term(V)}, Acc);
 							  (_,Acc) -> throw({done, Acc})
 						   end, #{}, [{first_key, <<?GROUP_ID:8>>}]),
 	    throw(missing)
@@ -161,5 +162,5 @@ random_path() ->
 
 last_id(#{}) -> 1;  %% Reserved for group lists
 last_id(GroupMap) ->
-	[Id|_] = lists:sort(fun({_,A}, {_,B}) -> A > B end, maps:to_list(GroupMap)),
+	[Id|_] = lists:sort(fun({_,A}, {_,B}) -> A#bitjar_groupdef.groupid > B#bitjar_groupdef.groupid end, maps:to_list(GroupMap)),
 	Id.

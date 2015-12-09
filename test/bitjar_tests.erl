@@ -130,6 +130,15 @@ delete_then_store() ->
 	?assertMatch([{<<"key5">>, <<"blah">>}], bitjar:all(B3, test)),
 	ok = bitjar:close(B3).
 
+multiple_open() ->
+	{ok, B} = bitjar:open(leveldb, #{path => ?PATH}),
+	{ok, B2} = bitjar:store(B, [{test, <<"key">>, <<"value">>},
+							    {test2, <<"key">>, <<"value">>}]),
+	ok = bitjar:close(B2),
+	{ok, C} = bitjar:open(leveldb, #{path => ?PATH}),
+	G = bitjar:groups(C),
+	?assertEqual(2, maps:size(G)). 
+
 leveldb_test_() -> 
   {foreach,
   fun start_leveldb/0,
@@ -145,7 +154,8 @@ leveldb_test_() ->
 			{"multistore", fun ldb_multistore/0},
 			{"Serialize and deserialize", fun serialization/0},
 			{"Search sub range", fun range/0},
-			{"Delete then store (atomic)", fun delete_then_store/0}
+			{"Delete then store (atomic)", fun delete_then_store/0},
+			{"Multiple open", fun multiple_open/0}
    ]}.
 
 %%%%% Memory / ETS bitjar backend
