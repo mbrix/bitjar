@@ -65,16 +65,16 @@ bitjar_delete_then_store(#bitjar{state=#{dbref := Ref}}=B, DeleteList, StoreList
 	{ok, B}.
 
 bitjar_all(B, GroupId) ->
-	bitjar_foldl(B, fun(K, V, Acc) -> [{K,V}|Acc] end, [], GroupId, fun null_fun/1, fun null_fun/2 ).
+	lists:reverse(bitjar_foldl(B, fun(K, V, Acc) -> [{K,V}|Acc] end, [], GroupId, fun null_fun/1, fun null_fun/2 )).
 
 bitjar_filter(B, FilterFuns, GroupId, KdeserialFun, VdeserialFun) ->
-	bitjar_foldl(B, fun(K, V, Acc) ->
+	lists:reverse(bitjar_foldl(B, fun(K, V, Acc) ->
 							%% Lets decode the K, V values so that the fundefs can run on the deserialized form
 							case bitjar_helper:run_fundefs(FilterFuns, {K, V}) of
 								true -> [V|Acc];
 								false -> Acc
 							end
-					end, [], GroupId, KdeserialFun, VdeserialFun).
+					end, [], GroupId, KdeserialFun, VdeserialFun)).
 
 bitjar_foldl(#bitjar{state=#{dbref := Ref}}, Fun, Start, GroupId, KdeserialFun, VdeserialFun) ->
 	try
@@ -88,9 +88,9 @@ bitjar_foldl(#bitjar{state=#{dbref := Ref}}, Fun, Start, GroupId, KdeserialFun, 
 								   end;
 							  (_,Acc) -> throw({done, Acc})
 						   end, Start, [{first_key, <<GroupId:8>>}]),
-		lists:reverse(Res)
+		Res
 	catch
-		throw:{done, Acc} -> lists:reverse(Acc)
+		throw:{done, Acc} -> Acc
 	end.
 
 
