@@ -82,7 +82,7 @@ bitjar_foldl(#bitjar{state=#{dbref := Ref}}, Fun, Start, GroupId, KdeserialFun, 
 	    						   case G of
 	    						   	   GroupId -> 
 	    						   	   	   K2 = KdeserialFun(Key),
-	    						   	   	   V2 = VdeserialFun(Key, V),
+	    						   	   	   V2 = VdeserialFun(K2, V),
 	    						   	   	   Fun(K2, V2, Acc);
 	    						   	   _ -> throw({done, Acc})
 								   end;
