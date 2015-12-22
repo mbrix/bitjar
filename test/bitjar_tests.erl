@@ -139,6 +139,13 @@ multiple_open() ->
 	G = bitjar:groups(C),
 	?assertEqual(2, maps:size(G)). 
 
+
+foldl_nolist() ->
+	{ok, B} = bitjar:open(leveldb, #{path => ?PATH}),
+	{ok, B2} = bitjar:store(B, [{test, <<"key">>, <<"value">>}]),
+	?assertMatch(ok, bitjar:foldl(B2, fun(_K, _V, _Acc) -> ok end, noacc, test)).
+
+
 leveldb_test_() -> 
   {foreach,
   fun start_leveldb/0,
@@ -155,7 +162,8 @@ leveldb_test_() ->
 			{"Serialize and deserialize", fun serialization/0},
 			{"Search sub range", fun range/0},
 			{"Delete then store (atomic)", fun delete_then_store/0},
-			{"Multiple open", fun multiple_open/0}
+			{"Multiple open", fun multiple_open/0},
+			{"Foldl without list", fun foldl_nolist/0}
    ]}.
 
 %%%%% Memory / ETS bitjar backend

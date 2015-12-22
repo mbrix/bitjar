@@ -141,9 +141,13 @@ delete_then_store() ->
 	ok = bitjar:close(B3).
 
 
+foldl_nolist() ->
+	{ok, B} = bitjar:open(ets, []),
+	{ok, B2} = bitjar:store(B, [{test, <<"key">>, <<"value">>}]),
+	?assertMatch(ok, bitjar:foldl(B2, fun(_K, _V, _Acc) -> ok end, noacc, test)).
 
 
-leveldb_test_() -> 
+ets_test_() -> 
   {foreach,
   fun start/0,
   fun stop/1,
@@ -158,8 +162,6 @@ leveldb_test_() ->
 			{"multistore", fun multistore/0},
 			{"serialization", fun serialization/0},
 			{"range", fun range/0},
-			{"delete then store", fun delete_then_store/0}
+			{"delete then store", fun delete_then_store/0},
+			{"foldl no list", fun foldl_nolist/0}
    ]}.
-
-%%%%% Memory / ETS bitjar backend
-%%%

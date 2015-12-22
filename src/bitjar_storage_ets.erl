@@ -152,9 +152,9 @@ foldl(#bitjar{state=#{refmap := R}}, Fun, Start, GroupId, KdeserialFun, Vdeseria
 
 ets_foldl(error, _, Start, _kfun, _vfun) -> Start;
 ets_foldl({ok, Ref}, Fun, Start, KdeserialFun, VdeserialFun) ->
-	lists:reverse(ets:foldl(fun({K,V}, Acc) -> 
-									K2 = KdeserialFun(K),
-									V2 = VdeserialFun(K2, V),
-									Fun(K2, V2, Acc) end, Start, Ref)).
+	ets:foldl(fun({K,V}, Acc) -> 
+					  K2 = KdeserialFun(K),
+					  V2 = VdeserialFun(K2, V),
+					  Fun(K2, V2, Acc) end, Start, Ref).
 
 
