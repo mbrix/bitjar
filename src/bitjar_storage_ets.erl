@@ -110,17 +110,17 @@ do_range_lookup(error, _GroupName, _Key, Acc) -> Acc;
 do_range_lookup({ok, Ref}, GroupName, Key, Acc) ->
 	MatchSpec = [{{{Key, '_'},'_'},
 				  [],['$_']}],
-	case ets:select(Ref, MatchSpec, 100) of
+	case ets:select(Ref, MatchSpec, 2) of
 		'$end_of_table' -> Acc;
 		{Matches, Continuation} ->  
-			do_range_lookup(Continuation, GroupName, lists:map(fun({K,V}) -> {GroupName, K, V} end, Matches) ++ Acc)
+			do_cont_range_lookup(Continuation, GroupName, Acc ++ lists:map(fun({K,V}) -> {GroupName, K, V} end, Matches))
 	end.
 
-do_range_lookup(Continuation, GroupName, Acc) ->
+do_cont_range_lookup(Continuation, GroupName, Acc) ->
 	case ets:select(Continuation) of 
 		'$end_of_table' -> Acc;
-		{Matches, Continuation} ->
-			do_range_lookup(Continuation, GroupName, lists:map(fun({K,V}) -> {GroupName, K, V} end, Matches) ++ Acc)
+		{Matches, Continuation2} ->
+			do_cont_range_lookup(Continuation2, GroupName, Acc ++ lists:map(fun({K,V}) -> {GroupName, K, V} end, Matches))
 	end.
 
 delete(B, []) -> {ok, B};

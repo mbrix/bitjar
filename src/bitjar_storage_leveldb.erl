@@ -123,7 +123,7 @@ range(#bitjar{state=#{dbref := Ref}}=B, [{GroupName, GroupId, Key}|T], Start, Le
 	    						   case G of
 	    						   	   GroupId -> 
 										   case binary:match(RawKey, Key) of
-											   {0,_} -> [{GroupName, Key, V}|Acc]; 
+											   {0,_} -> [{GroupName, RawKey, V}|Acc]; 
 										   	   _ -> throw({done, Acc})
 									   end;
 	    						   	   _ -> throw({done, Acc})

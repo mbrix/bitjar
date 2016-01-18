@@ -119,6 +119,21 @@ range() ->
 	{ok, Values} = bitjar:range(B2, test, <<"key">>),
 	?assertEqual(5, length(Values)).
 
+bigrange() ->
+	{ok, B} = bitjar:open(leveldb, #{path => ?PATH}),
+	B3 = lists:foldl(fun(Num, Acc) ->
+							 BinNum =  list_to_binary(integer_to_list(Num)),
+							 {ok, B2} = bitjar:store(Acc, [{test, <<"key", BinNum/binary>>, <<"value">>}]),
+							 B2
+					 end, B, lists:seq(1, 1001)),
+	{ok, Values} = bitjar:range(B3, test, <<"key">>),
+	?assertEqual(1001, length(Values)),
+	[A|_] = Values,
+	%% Order is not actually guaranteed
+	?assertEqual({test,<<"key1">>,<<"value">>}, A),
+	?assertEqual({test, <<"key1001">>,<<"value">>}, lists:keyfind(<<"key1001">>, 2, Values)).
+
+
 delete_then_store() ->
 	{ok, B} = bitjar:open(leveldb, #{path => ?PATH}),
 	{ok, B2} = bitjar:store(B, [{test, <<"key">>, <<"value">>},
@@ -161,6 +176,7 @@ leveldb_test_() ->
 			{"multistore", fun ldb_multistore/0},
 			{"Serialize and deserialize", fun serialization/0},
 			{"Search sub range", fun range/0},
+			{"range with continuations", fun bigrange/0},
 			{"Delete then store (atomic)", fun delete_then_store/0},
 			{"Multiple open", fun multiple_open/0},
 			{"Foldl without list", fun foldl_nolist/0}

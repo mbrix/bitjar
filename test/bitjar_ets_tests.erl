@@ -129,6 +129,19 @@ range() ->
 	{ok, Values} = bitjar:range(B2, test, <<"key">>),
 	?assertEqual(5, length(Values)).
 
+bigrange() ->
+	{ok, B} = bitjar:open(ets, []),
+	B3 = lists:foldl(fun(Num, Acc) ->
+							 {ok, B2} = bitjar:store(Acc, [{test, {<<"key">>, Num}, <<"value">>}]),
+							 B2
+					 end, B, lists:seq(1, 1001)),
+	{ok, Values} = bitjar:range(B3, test, <<"key">>),
+	?assertEqual(1001, length(Values)),
+	[A|_] = Values,
+	[Last|_] = lists:reverse(Values),
+	?assertEqual({test,{<<"key">>,1},<<"value">>}, A),
+	?assertEqual({test,{<<"key">>,1001},<<"value">>}, Last).
+
 delete_then_store() ->
 	{ok, B} = bitjar:open(ets, []),
 	{ok, B2} = bitjar:store(B, [{test, <<"key">>, <<"value">>},
@@ -162,6 +175,7 @@ ets_test_() ->
 			{"multistore", fun multistore/0},
 			{"serialization", fun serialization/0},
 			{"range", fun range/0},
+			{"big ranges", fun bigrange/0},
 			{"delete then store", fun delete_then_store/0},
 			{"foldl no list", fun foldl_nolist/0}
    ]}.
