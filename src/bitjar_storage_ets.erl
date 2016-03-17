@@ -18,6 +18,7 @@
 		 bitjar_store/2,
 		 bitjar_lookup/2,
 		 bitjar_range/2,
+		 bitjar_multi/2,
 		 bitjar_delete/2,
 		 bitjar_delete_then_store/3,
 		 bitjar_all/2,
@@ -38,23 +39,33 @@ bitjar_shutdown(#bitjar{state = #{refmap := R}}) ->
 
 bitjar_default_options() -> [ordered_set, {keypos, 1}, {read_concurrency, true}].
 
-bitjar_store(#bitjar{}=B, StoreList) -> store(B, StoreList).
+bitjar_store(B, StoreList) -> store(B, StoreList).
 
-bitjar_lookup(#bitjar{}=B, LookupList) -> lookup(B, LookupList, length(LookupList), [], []).
+bitjar_lookup(B, LookupList) -> lookup(B, LookupList, length(LookupList), [], []).
 
-bitjar_range(#bitjar{}=B, RangeList) -> range(B, RangeList, [], []).
+bitjar_range(B, RangeList) -> range(B, RangeList, [], []).
 
-bitjar_delete(#bitjar{}=B, DeleteList) -> delete(B, DeleteList).
+bitjar_multi(B, RawList) -> 
+    D = lists:foldl(fun({Id, delete, Key}, B2) ->
+                        {ok, C} = delete(B2, [{none, Id, Key}]),
+                        C;
+                   ({Id, store, Key, Value}, B2) ->
+                        {ok, C} = store(B2, [{Id, Key, Value}]),
+                        C
+                end, B, RawList),
+    {ok, D}.
+
+bitjar_delete(B, DeleteList) -> delete(B, DeleteList).
 
 bitjar_delete_then_store(B, DeleteList, StoreList) ->
 	{ok, B2} = delete(B, DeleteList),
 	store(B2, StoreList).
 
-bitjar_all(#bitjar{}=B, GroupId) -> all(B, GroupId).
+bitjar_all(B, GroupId) -> all(B, GroupId).
 
 bitjar_filter(B, FilterFuns, GroupId, KdeserialFun, VdeserialFun) -> filter(B, FilterFuns, GroupId, KdeserialFun, VdeserialFun).
 
-bitjar_foldl(#bitjar{}=B, Fun, Start, GroupId, KdeserialFun, VdeserialFun) -> foldl(B, Fun, Start, GroupId, KdeserialFun, VdeserialFun).
+bitjar_foldl(B, Fun, Start, GroupId, KdeserialFun, VdeserialFun) -> foldl(B, Fun, Start, GroupId, KdeserialFun, VdeserialFun).
 
 bitjar_new_group(#bitjar{state=#{options := O,
 								 refmap := R}=S}=B, Id) ->

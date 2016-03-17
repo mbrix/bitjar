@@ -9,6 +9,7 @@
 %% API functions
 -export([open/1,
 		 open/2,
+		 add_group/2,
 		 set_serializer/6,
 		 set_serializers/2,
 		 set_key_serializer/3,
@@ -19,6 +20,7 @@
 		 groups/1,
 		 store/2,
 		 store/4,
+		 multi/2,
 		 lookup/2,
 		 lookup/3,
 		 delete/2,
@@ -49,6 +51,7 @@ behaviour_info(callbacks)->
 	 {bitjar_shutdown, 1},
 	 {bitjar_store, 2},
      {bitjar_lookup, 2},
+     {bitjar_multi, 2},
 	 {bitjar_range, 2},
      {bitjar_delete, 2},
 	 {bitjar_all, 2},
@@ -101,6 +104,12 @@ lookup([B|T], GKList) -> stack_lookup(T, lookup(B, GKList), GKList, []);
 lookup(B, GKList) ->
 	{ok, B2, TransformedList} = resolve_gklist(B, GKList),
 	do_lookup(B2, TransformedList).
+
+
+multi(B, RawList) ->
+    {ok, B2, TransformedList} = resolve_rawlist(B, RawList),
+    %io:format("XX: ~p~n", [TransformedList]),
+    do_multi(B2, TransformedList).
 
 range([B|T], Group, Key) -> stack_range(T, range(B, Group, Key), [{Group, Key}], []);
 range(B, Group, Key) -> range(B, [{Group, Key}]).
@@ -224,11 +233,27 @@ do_range(_, []) -> not_found;
 do_range(#bitjar{mod=M}=B, GKList) ->
 	deserialize(B, M:bitjar_range(B, GKList)).
 
+do_multi(#bitjar{mod=M}=B, RawList) -> M:bitjar_multi(B, RawList).
+
 do_delete(B, []) -> {ok, B};
 do_delete(#bitjar{mod=M}=B, GKList) -> M:bitjar_delete(B, GKList).
 
 do_delete_then_store(B, [], []) -> {ok, B};
 do_delete_then_store(#bitjar{mod=M}=B, GKList, GKVList) -> M:bitjar_delete_then_store(B, GKList, GKVList).
+
+resolve_rawlist(B, L) -> resolve_rawlist(B, L, []).
+resolve_rawlist(B, [], Acc) -> {ok, B, Acc};
+resolve_rawlist(B, [{GDef, delete, K}|T], Acc) ->
+    resolve_rawlist(B, T,
+                    [{GDef#bitjar_groupdef.groupid,
+                      delete,
+                      run_fun(GDef#bitjar_groupdef.kserializer, K)}|Acc]);
+resolve_rawlist(B, [{GDef, store, K, V}|T], Acc) ->
+    resolve_rawlist(B, T,
+                    [{GDef#bitjar_groupdef.groupid,
+                      store,
+					  run_fun(GDef#bitjar_groupdef.kserializer, K),
+					  run_fun(GDef#bitjar_groupdef.vserializer, V)}|Acc]).
 
 resolve_gkvlist(B, L) -> resolve_gkvlist(B, L, []).
 resolve_gkvlist(B, [], Acc) -> {ok, B, Acc};
