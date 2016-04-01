@@ -120,14 +120,27 @@ serialization() ->
 
 range() ->
 	{ok, B} = bitjar:open(ets, []),
-	{ok, B2} = bitjar:store(B, [{test, {<<"key">>, 1}, <<"value">>},
+	{ok, B2} = bitjar:store(B, [{test, {<<"key">>,0}, <<"value8">>},
+	                            {test, {<<"key">>, 1}, <<"value">>},
 								{test, {<<"key">>, 2}, <<"value2">>},
 								{test, {<<"key">>, 3}, <<"value3">>},
 								{test, {<<"key">>, 4}, <<"value4">>},
 								{test, {<<"key">>, 5}, <<"value5">>},
+								{test, {<<"otherkey">>,0}, <<"value">>},
 								{test, {<<"otherkey">>,1}, <<"value">>}]),
 	{ok, Values} = bitjar:range(B2, test, <<"key">>),
-	?assertEqual(5, length(Values)).
+    {ok, Values2} = bitjar:range(B2, test, <<"otherkey">>),
+	?assertEqual(6, length(Values)),
+	?assertEqual(2, length(Values2)),
+
+	%% Gaps
+    {ok, B3} = bitjar:store(B2, [{test, {<<"key9">>, 0}, <<"value">>},
+                                 {test, {<<"key7">>,10}, <<"value">>},
+                                 {test, {<<"key9">>,10}, <<"value">>},
+                                 {test, {<<"key8">>,10}, <<"value">>},
+                                 {test, {<<"key9">>,22009}, <<"value">>}]),
+    {ok, SkippedValues} = bitjar:range(B3, test, <<"key9">>),
+    ?assertEqual(3, length(SkippedValues)).
 
 bigrange() ->
 	{ok, B} = bitjar:open(ets, []),

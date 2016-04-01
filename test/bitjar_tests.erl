@@ -6,6 +6,7 @@
 -author('mbranton@emberfinancial.com').
 
 -define(PATH, "/tmp/bitjartests").
+-define(PATH2, "/tmp/bitjartests2").
 
 -include_lib("../include/bitjar.hrl").
 -include_lib("eunit/include/eunit.hrl").
@@ -13,7 +14,9 @@
 
 start_leveldb() -> ok.
 stop_leveldb(_) -> cleanup_directories().
-cleanup_directories() -> os:cmd("rm -rf " ++ ?PATH).
+cleanup_directories() -> 
+    os:cmd("rm -rf " ++ ?PATH),
+    os:cmd("rm -rf " ++ ?PATH2).
 
 %%%% LevelDB bitjar backend
 ldb_init() ->
@@ -160,6 +163,27 @@ foldl_nolist() ->
 	{ok, B2} = bitjar:store(B, [{test, <<"key">>, <<"value">>}]),
 	?assertMatch(ok, bitjar:foldl(B2, fun(_K, _V, _Acc) -> ok end, noacc, test)).
 
+stacked_lookup() ->
+	{ok, B} = bitjar:open(leveldb, #{path => ?PATH}),
+	{ok, B2} = bitjar:store(B, [{test, <<"key">>, <<"value">>},
+								{test, <<"key2">>, <<"value2">>},
+								{test, <<"key3">>, <<"value3">>},
+							    {test, <<"key4">>, <<"value4">>},
+							    {test, <<"key5">>, <<"value5">>}]),
+    {ok, C} = bitjar:open(leveldb , #{path => ?PATH2}),
+	{ok, C2} = bitjar:store(C, [{test, <<"key">>, <<"value_hidden">>},
+								{test, <<"key2">>, <<"value2_hidden">>},
+								{test, <<"key3">>, <<"value3_hidden">>},
+							    {test, <<"key7">>, <<"value7">>},
+							    {test, <<"key8">>, <<"value9">>}]),
+
+	?assertEqual({ok, [{test, <<"key">>, <<"value">>}]}, bitjar:lookup([B2, C2], test, <<"key">>)),
+	?assertEqual({ok, [{test, <<"key">>, <<"value_hidden">>}]}, bitjar:lookup([C2, B2], test, <<"key">>)),
+	?assertEqual({ok, [{test, <<"key4">>, <<"value4">>}]}, bitjar:lookup([B2, C2], test, <<"key4">>)),
+	?assertEqual({ok, [{test, <<"key4">>, <<"value4">>}]}, bitjar:lookup([C2, B2], test, <<"key4">>)),
+	?assertEqual({ok, [{test, <<"key7">>, <<"value7">>}]}, bitjar:lookup([C2, B2], test, <<"key7">>)),
+	?assertEqual({ok, [{test, <<"key7">>, <<"value7">>}]}, bitjar:lookup([B2, C2], test, <<"key7">>)).
+
 
 leveldb_test_() -> 
   {foreach,
@@ -179,7 +203,8 @@ leveldb_test_() ->
 			{"range with continuations", fun bigrange/0},
 			{"Delete then store (atomic)", fun delete_then_store/0},
 			{"Multiple open", fun multiple_open/0},
-			{"Foldl without list", fun foldl_nolist/0}
+			{"Foldl without list", fun foldl_nolist/0},
+            {"Stacked lookups", fun stacked_lookup/0}
    ]}.
 
 %%%%% Memory / ETS bitjar backend
