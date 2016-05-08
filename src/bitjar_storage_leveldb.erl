@@ -154,8 +154,14 @@ range(#bitjar{state=#{dbref := Ref}}=B, [{GroupName, GroupId, Key}|T], Start, Le
 init_leveldb(Options) ->
 	Path = maps:get(path, Options),
 	StorageOptions = maps:get(storage_options, Options),
-    {ok, Dbref} = eleveldb:open(Path, StorageOptions),
-    Dbref.
+    case eleveldb:open(Path, StorageOptions) of
+        {ok, DBRef} -> DBRef;
+        {error, {db_open, _}} ->
+            lager:info("Attempting to leveldb repair: ~p~n", [Path]),
+            eleveldb:repair(Path, StorageOptions),
+            {ok, Ref} = eleveldb:open(Path, StorageOptions),
+            Ref
+    end.
 
 
 init_groups(Ref) ->
