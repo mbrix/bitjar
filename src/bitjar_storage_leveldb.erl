@@ -178,7 +178,7 @@ init_groups(Ref) ->
 	end.
 
 random_path() ->
- lists:flatten([io_lib:format("~2.16.0b", [X]) || X <- binary_to_list(crypto:rand_bytes(32))]).
+ lists:flatten([io_lib:format("~2.16.0b", [X]) || X <- binary_to_list(crypto:strong_rand_bytes(32))]).
 
 last_id(#{}) -> 1;  %% Reserved for group lists
 last_id(GroupMap) ->
